@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# Loop through domains in scopes.txt
+while IFS= read -r domain; do
+    echo "Processing domain: $domain"
+
+    # Create a folder for the domain's enumeration
+    enum_dir="$HOME/automate/enum/$domain"
+    mkdir -p "$enum_dir"
+
+    # Run subfinder
+    subfinder -d "$domain" -o "$enum_dir/subfinder.txt"
+
+    # Run assetfinder
+    assetfinder --subs-only "$domain" | tee -a "$enum_dir/asset.txt"
+
+    # Run crt_org.sh
+    crt_org.sh "$domain" | tee -a "$enum_dir/crt_org.txt"
+
+    # Run crt.sh
+    crt.sh -d "$domain" | tee -a "$enum_dir/crt.txt"
+
+    # Run amass enum
+    amass enum --passive -d "$domain" | tee -a "$enum_dir/amassP.txt"
+
+    # Run amass enum with brute
+    timeout 20m amass enum --brute -d "$domain" -v | tee -a "$enum_dir/amassB.txt"
+
+    # Combine and sort unique domains
+    cat "$enum_dir"/*.txt | sort -u > "$enum_dir/finalDomains.txt"
+
+    # Check for alive subdomains
+    cat "$enum_dir/finalDomains.txt" | pdhttpx -silent -o "$enum_dir/alive.txt" | pdhttpx -l "$enum_dir/alive.txt" -fr -title -status-code -location -content-length -websocket -td -o "$enum_dir/details.txt"
+
+done < scopes.txt
